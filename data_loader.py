@@ -57,21 +57,22 @@ class Dataset(torch.utils.data.Dataset):
         return batch
 
 
-use_cuda = torch.cuda.is_available()
-device = torch.device("cuda:0" if use_cuda else "cpu")
-print(device)
-torch.backends.cudnn.benchmark = True
-dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
-
-data = Dataset("individual")
-
-params = {'batch_size': 64,
-          'shuffle': True,
-          'num_workers': 4}
-training_generator = torch.utils.data.DataLoader(data, **params, drop_last=True, collate_fn=data.collate_fn)
-
-for local_batch in training_generator:
-    local_batch.to(device)
-    print(len(local_batch))
-    print(local_batch.src[0])
-    break
+# sample call code
+# use_cuda = torch.cuda.is_available()
+# device = torch.device("cuda:0" if use_cuda else "cpu")
+# print(device)
+# torch.backends.cudnn.benchmark = True
+# dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
+#
+# data = Dataset("individual")
+#
+# params = {'batch_size': 64,
+#           'shuffle': True,
+#           'num_workers': 4}
+# training_generator = torch.utils.data.DataLoader(data, **params, drop_last=True, collate_fn=data.collate_fn)
+#
+# for local_batch in training_generator:
+#     local_batch.to(device)
+#     print(len(local_batch))
+#     print(local_batch.src[0])
+#     break
