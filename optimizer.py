@@ -49,21 +49,24 @@ def _get_params(model_params):
             params.append(p)
     return params
 
+def _get_optim(params, args):
+    return NoamOpt(original_lr=args.lr, warmup=args.warmup_steps,
+                   optimizer=torch.optim.Adam(params, lr=args.lr, betas=(args.beta1, args.beta2), eps=1e-9))
 
 # Using defaults from the BertSum code
 def optim_bert(args, model):
-    model_params = [(n, p) for n, p in list(model.named_parameters()) if n.startswith('bert.model')]
+    # print("In optim bert")
+    # print(model.named_parameters())
+    model_params = [(n, p) for n, p in list(model.named_parameters()) if n.startswith('bert_model')]
+    # print(model_params)
     params = _get_params(model_params)
-
-    return NoamOpt(original_lr=args.lr, warmup=args.warmup_steps,
-                   optimizer=torch.optim.Adam(params, lr=args.lr, betas=(args.beta1, args.beta2), eps=1e-9))
+    return _get_optim(params, args)
 
 
 def optim_decoder(args, model):
-    model_params = [(n, p) for n, p in list(model.named_parameters()) if not n.startswith('bert.model') and "edit_" not in n]
+    model_params = [(n, p) for n, p in list(model.named_parameters()) if not n.startswith('bert_model')]
     params = _get_params(model_params)
-    return NoamOpt(original_lr=args.lr, warmup=args.warmup_steps,
-                   optimizer=torch.optim.Adam(params, lr=args.lr, betas=(args.beta1, args.beta2), eps=1e-9))
+    return _get_optim(params, args)
 
 
 # def get_std_opt(model):

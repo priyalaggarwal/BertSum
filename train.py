@@ -16,7 +16,7 @@ print("Setup done")
 
 # Get AbsSummarizer model
 cache_dir="/projects/tir4/users/mbhandar2/transformer_models_cache"
-model = AbsSummarizer(cache_dir)
+model = AbsSummarizer(cache_dir, device)
 print("AbsSummarizer done")
 
 # Get separate optimizers for BERT encoder and Transformer Decoder
@@ -62,4 +62,5 @@ trainer = Trainer(
 print("Trainer done")
 
 # TODO: Look into creating checkpoints
+# TODO: Will have to write own train function to allow encoder and decoder to train using different optimizers
 trainer.train()
