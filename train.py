@@ -34,32 +34,33 @@ symbols = {'BOS': tokenizer.vocab['[unused0]'], 'EOS': tokenizer.vocab['[unused1
 
 print("BERT setup done")
 
+data = data_loader.Dataset("individual")
+
 # TODO: Custom loss function
 
 # TODO: Below code will have to be substantially changed
-training_args = TrainingArguments(
-    output_dir='./results',          # output directory
-    num_train_epochs=1,              # total # of training epochs
-    per_device_train_batch_size=64,  # batch size per device during training
-    per_device_eval_batch_size=64,   # batch size for evaluation
-    warmup_steps=500,                # number of warmup steps for learning rate scheduler
-    weight_decay=0.01,               # strength of weight decay
-    logging_dir='./logs',            # directory for storing logs
-    # drop_last=True
-)
+# training_args = TrainingArguments(
+#     output_dir='./results',          # output directory
+#     num_train_epochs=1,              # total # of training epochs
+#     per_device_train_batch_size=64,  # batch size per device during training
+#     per_device_eval_batch_size=64,   # batch size for evaluation
+#     warmup_steps=500,                # number of warmup steps for learning rate scheduler
+#     weight_decay=0.01,               # strength of weight decay
+#     logging_dir='./logs',            # directory for storing logs
+#     # drop_last=True
+# )
 
-print("TrainingArguments done")
+# print("TrainingArguments done")
 
-data = data_loader.Dataset("individual")
-trainer = Trainer(
-    model=model,                         # the instantiated 🤗 Transformers model to be trained
-    args=training_args,                  # training arguments, defined above
-    train_dataset=data,                  # training dataset
-    data_collator=data.collate_fn,
-    # eval_dataset=test_dataset          # evaluation dataset
-)
+# trainer = Trainer(
+#     model=model,                         # the instantiated 🤗 Transformers model to be trained
+#     args=training_args,                  # training arguments, defined above
+#     train_dataset=data,                  # training dataset
+#     data_collator=data.collate_fn,
+#     # eval_dataset=test_dataset          # evaluation dataset
+# )
 
-print("Trainer done")
+# print("Trainer done")
 
 # TODO: Look into creating checkpoints
 # TODO: Will have to write own train function to allow encoder and decoder to train using different optimizers
@@ -71,17 +72,15 @@ curr_epoch = 0
 
 print("Starting training...")
 
-params = {'batch_size': 4,
+batch_size = 4
+params = {'batch_size': batch_size,
           'shuffle': True,
           'num_workers': 4}
 training_generator = torch.utils.data.DataLoader(data, **params, drop_last=True, collate_fn=data.collate_fn)
 
-
 while curr_epoch <= epochs:
     for batch in training_generator:
         batch.to(device)
-        # print(len(batch))
-        # print(batch.src[0])
 
         num_tokens = batch.tgt[:, 1:].ne(0).sum() # not equal to Pad id, which is 0
         # any tensor on GPU has a number of fields associated
@@ -90,6 +89,7 @@ while curr_epoch <= epochs:
 
         decoder_output = model(batch.src, batch.tgt[:, :-1], batch.segs, batch.mask_src)
         # TODO: Loss calculation, optimizer.step
-        print(decoder_output)
+        # print(decoder_output)
         # import pdb; pdb.set_trace()
         break
+    break

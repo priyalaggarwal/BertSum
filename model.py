@@ -52,7 +52,12 @@ class AbsSummarizer(nn.Module):
         # Positional embeddings
         self.pos_emb = PositionalEncoding(self.dropout, self.embeddings.embedding_dim)
 
-        self.to(device)
+        # tgt_mask - keeping this so that no need to create transformer object again and again
+        # Choosing 5000 as a large enough size
+        self.tgt_mask_matrix = nn.Transformer().generate_square_subsequent_mask(sz = 5000).to(device)
+
+        self.device = device
+        self.to(self.device)
 
     def forward(self, src, tgt, segs, mask_src=None, memory_bank=None, step=None):
 
@@ -71,21 +76,16 @@ class AbsSummarizer(nn.Module):
         src_pad_mask = src.data.eq(padding_idx)#.unsqueeze(1).expand(src_batch, tgt_len, src_len)
         tgt_pad_mask = tgt.data.eq(padding_idx)#.unsqueeze(1).expand(tgt_batch, tgt_len, tgt_len)
 
-        tgt_mask = np.triu(np.ones((tgt_len, tgt_len)), k=1).astype('uint8') # generates an upper triangular matrix
-        tgt_mask = torch.from_numpy(tgt_mask)
-
-        # tgt_mask = nn.Transformer().generate_square_subsequent_mask(sz=tgt_len)
-        print(src.type())
-        print(segs.type())
-        print(mask_src.type())
+        tgt_mask = self.tgt_mask_matrix[:tgt_len, :tgt_len]
 
         # batch size X sequence length X embedding dimension
-        # import pdb; pdb.set_trace()
+
+        # Encoder
         top_vec = self.bert_model(input_ids=src, attention_mask=mask_src, token_type_ids=segs)
-        # print(top_vec)
-        # TODO: Send correct inputs and masks to decoder
-        decoder_outputs, _ = self.decoder(tgt = output[:, :-1],
-                                          memory = top_vec,
+
+        # Decoder
+        decoder_outputs = self.decoder(tgt = output.view(output.shape[1], output.shape[0], -1),
+                                          memory = top_vec[0].view(top_vec[0].shape[1], top_vec[0].shape[0], -1),
                                           tgt_mask = tgt_mask,
                                           memory_mask = None,
                                           tgt_key_padding_mask = tgt_pad_mask,

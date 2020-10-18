@@ -38,9 +38,6 @@ class Batch:
         self.src = torch.cat([src, end_id], dim=-1)
 
         self.segs = self.segs[:,:self.max_pos]
-        # print(self.src.shape)
-        # print(self.tgt.shape)
-        # print(self.segs.shape)
 
         self.mask_src = ~ (self.src == 0)
         self.mask_tgt = ~ (self.tgt == 0)
