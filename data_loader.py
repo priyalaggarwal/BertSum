@@ -15,6 +15,8 @@ class Batch:
         # Keeping src_txt and tgt_txt for debugging purposes
         self.src_txt = [d['src_txt'] for d in data_points]
         self.tgt_txt = [d['tgt_txt'] for d in data_points]
+        self.max_pos = 512
+        self.max_tgt_len = 140
 
     def __len__(self):
         return len(self.src)
@@ -25,8 +27,24 @@ class Batch:
         self.tgt = pad_sequence(self.tgt, batch_first=True)
         self.segs = pad_sequence(self.segs, batch_first=True)
 
-        self.mask_src = ~ self.src
-        self.mask_tgt = ~ self.tgt
+    def preprocess(self):
+        # Truncate input to 512 sequence length
+        tgt = self.tgt[:, :self.max_tgt_len][:, :-1]
+        x = torch.full((tgt.shape[0], 1), 2, dtype=tgt.dtype)
+        self.tgt = torch.cat([tgt, x], dim = -1)
+
+        end_id = self.src[:,-1].unsqueeze(1)
+        src = self.src[:, :-1][:,:self.max_pos - 1]
+        self.src = torch.cat([src, end_id], dim=-1)
+
+        self.segs = self.segs[:,:self.max_pos]
+        # print(self.src.shape)
+        # print(self.tgt.shape)
+        # print(self.segs.shape)
+
+        self.mask_src = ~ (self.src == 0)
+        self.mask_tgt = ~ (self.tgt == 0)
+
 
     def to(self, device):
         self.src = self.src.to(device)
@@ -54,6 +72,7 @@ class Dataset(torch.utils.data.Dataset):
     def collate_fn(self, data_points: list):
         batch = Batch(data_points)
         batch.pad()
+        batch.preprocess()
         return batch
 
 
@@ -73,6 +92,9 @@ class Dataset(torch.utils.data.Dataset):
 #
 # for local_batch in training_generator:
 #     local_batch.to(device)
-#     print(len(local_batch))
+#     # print(len(local_batch))
 #     print(local_batch.src[0])
+#     print(local_batch.mask_tgt)
+#     print(local_batch.src.shape)
+#     import pdb; pdb.set_trace()
 #     break

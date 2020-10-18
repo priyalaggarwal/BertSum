@@ -63,4 +63,33 @@ print("Trainer done")
 
 # TODO: Look into creating checkpoints
 # TODO: Will have to write own train function to allow encoder and decoder to train using different optimizers
-trainer.train()
+# trainer.train()
+
+# TODO: Update params
+epochs = 1000
+curr_epoch = 0
+
+print("Starting training...")
+
+params = {'batch_size': 4,
+          'shuffle': True,
+          'num_workers': 4}
+training_generator = torch.utils.data.DataLoader(data, **params, drop_last=True, collate_fn=data.collate_fn)
+
+
+while curr_epoch <= epochs:
+    for batch in training_generator:
+        batch.to(device)
+        # print(len(batch))
+        # print(batch.src[0])
+
+        num_tokens = batch.tgt[:, 1:].ne(0).sum() # not equal to Pad id, which is 0
+        # any tensor on GPU has a number of fields associated
+        # .item() gets scalar value
+        normalization = num_tokens.item()
+
+        decoder_output = model(batch.src, batch.tgt[:, :-1], batch.segs, batch.mask_src)
+        # TODO: Loss calculation, optimizer.step
+        print(decoder_output)
+        # import pdb; pdb.set_trace()
+        break
