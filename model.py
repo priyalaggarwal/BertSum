@@ -46,6 +46,7 @@ class AbsSummarizer(nn.Module):
         # Token embeddings
         tgt_embeddings = nn.Embedding(self.vocab_size, self.bert_model.config.hidden_size, padding_idx=0)
         tgt_embeddings.weight = copy.deepcopy(self.bert_model.embeddings.word_embeddings.weight)
+        # Keeping decoder input embedding same as target embedding
         self.embeddings = tgt_embeddings
         self.linear_layer[0].weight = self.embeddings.weight
 
@@ -78,19 +79,30 @@ class AbsSummarizer(nn.Module):
 
         tgt_mask = self.tgt_mask_matrix[:tgt_len, :tgt_len]
 
-        # batch size X sequence length X embedding dimension
-
         # Encoder
         top_vec = self.bert_model(input_ids=src, attention_mask=mask_src, token_type_ids=segs)
 
         # Decoder
+        # Decoder takes two inputs -
+        # 1. Output from encoder
+        # 2. Actual target through Teacher Forcing
+        # Results in tensor of size [tgt_len x batch x hidden]
         decoder_outputs = self.decoder(tgt = output.view(output.shape[1], output.shape[0], -1),
                                           memory = top_vec[0].view(top_vec[0].shape[1], top_vec[0].shape[0], -1),
                                           tgt_mask = tgt_mask,
                                           memory_mask = None,
                                           tgt_key_padding_mask = tgt_pad_mask,
                                           memory_key_padding_mask = src_pad_mask)
-        return decoder_outputs
+
+        # print(decoder_outputs.shape)
+
+        linear_layer_input = decoder_outputs.view(-1, decoder_outputs.size(2))
+        # print(linear_layer_input.shape)
+
+        final_output = self.linear_layer(linear_layer_input)
+        # print(final_output.shape)
+
+        return final_output
 
 
 class PositionalEncoding(nn.Module):

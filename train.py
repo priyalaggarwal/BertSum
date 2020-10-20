@@ -5,6 +5,7 @@ from transformers import Trainer, TrainingArguments
 import data_loader
 import random
 import optimizer
+import loss
 
 # device = "cpu" if args.visible_gpus == '-1' else "cuda"
 use_cuda = torch.cuda.is_available()
@@ -25,7 +26,7 @@ optim_decoder_args = optimizer.OptimizerArgs(lr=0.2, warmup_steps=10000)
 
 optim_bert = optimizer.optim_bert(optim_bert_args, model)
 optim_dec = optimizer.optim_decoder(optim_decoder_args, model)
-optim = [optim_bert, optim_dec]
+optims = [optim_bert, optim_dec]
 
 # Get Tokenizer. BERT has its own tokenizer
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True, cache_dir=cache_dir)
@@ -67,29 +68,46 @@ data = data_loader.Dataset("individual")
 # trainer.train()
 
 # TODO: Update params
-epochs = 1000
+epochs = 1
 curr_epoch = 0
 
 print("Starting training...")
 
-batch_size = 4
+batch_size = 8
 params = {'batch_size': batch_size,
           'shuffle': True,
           'num_workers': 4}
 training_generator = torch.utils.data.DataLoader(data, **params, drop_last=True, collate_fn=data.collate_fn)
 
+padding_index = 0
+
+loss_fn = loss.LabelSmoothingLoss(label_smoothing=0.1,
+                                  tgt_vocab_size=model.vocab_size,
+                                  device=device,
+                                  ignore_index=padding_index)
+
 while curr_epoch <= epochs:
+    i = 0
     for batch in training_generator:
         batch.to(device)
 
-        num_tokens = batch.tgt[:, 1:].ne(0).sum() # not equal to Pad id, which is 0
+        # Not taking the first token in the batch, because we are predicting from the second word onwards
+        # First word is Start of Sentence, which we don't want to predict
+        num_tokens = batch.tgt[:, 1:].ne(padding_index).sum() # not equal to Pad id, which is 0
+
         # any tensor on GPU has a number of fields associated
         # .item() gets scalar value
         normalization = num_tokens.item()
 
-        decoder_output = model(batch.src, batch.tgt[:, :-1], batch.segs, batch.mask_src)
-        # TODO: Loss calculation, optimizer.step
-        # print(decoder_output)
-        # import pdb; pdb.set_trace()
-        break
-    break
+        # We don't give End of Sentence as input
+        model_output = model(batch.src, batch.tgt[:, :-1], batch.segs, batch.mask_src)
+
+        loss = loss_fn(model_output.view(-1, model.vocab_size),
+                       batch.tgt[:, 1:].reshape(-1))
+        loss.div(float(normalization)).backward()
+
+        for o in optims:
+            o.step()
+        i += 1
+        if i%50==0:
+            print(loss.item())
