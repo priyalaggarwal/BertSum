@@ -4,7 +4,6 @@ import torch.nn as nn
 import math
 from torch.nn.init import xavier_uniform_
 import copy
-import numpy as np
 
 class AbsSummarizer(nn.Module):
     # TODO: Write eval mode for the entire model
@@ -93,8 +92,6 @@ class AbsSummarizer(nn.Module):
                                           memory_mask = None,
                                           tgt_key_padding_mask = tgt_pad_mask,
                                           memory_key_padding_mask = src_pad_mask)
-
-        # print(decoder_outputs.shape)
 
         linear_layer_input = decoder_outputs.view(-1, decoder_outputs.size(2))
         # print(linear_layer_input.shape)

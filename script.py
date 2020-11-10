@@ -1,8 +1,11 @@
+"""
+This file takes all input pt files from BERTSUM and splits them into files containing individual samples.
+"""
+
 import torch
 import glob
 import random
 
-from torch.utils.data import Dataset
 
 def load_dataset(bert_data_path, corpus_type, shuffle):
     """
@@ -35,13 +38,13 @@ def load_dataset(bert_data_path, corpus_type, shuffle):
         yield _lazy_dataset_loader(pt, corpus_type)
 
 print(torch.__version__)
-# TODO: Complete creating dataset for all remaining files
 data = load_dataset(bert_data_path="bert_data_cnndm_final/cnndm", corpus_type="train", shuffle=True)
-for pt in data:
-    for i, sample in enumerate(pt):
-        torch.save(sample, "individual/cnndm.train.bert." + str(i) + ".pt")
-        # print(type())
-    break
 
-# x = Dataset(data)
-# print(x)
+i = 0
+for pt in data:
+    for sample in pt:
+        torch.save(sample, "full_data/cnndm.train.bert." + str(i) + ".pt")
+        # print(type())
+        i+=1
+
+print(i)

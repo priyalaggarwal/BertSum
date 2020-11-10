@@ -1,4 +1,5 @@
 import torch
+import pandas as pd
 import os
 from torch.nn.utils.rnn import pad_sequence
 
@@ -50,12 +51,22 @@ class Batch:
         self.mask_src = self.mask_src.to(device)
         self.mask_tgt = self.mask_tgt.to(device)
 
+    # custom memory pinning method on custom type
+    def pin_memory(self):
+        self.src = self.src.pin_memory()
+        self.tgt = self.tgt.pin_memory()
+        self.segs = self.segs.pin_memory()
+        self.mask_src = self.mask_src.pin_memory()
+        self.mask_tgt = self.mask_tgt.pin_memory()
+        return self
+
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, root):
         'Initialization'
         self.root = root
-        self.files = os.listdir(root)  # take all files in the root directory
+        self.files_path = 'paths.txt'
+        self.files = pd.read_csv(self.files_path, header=None)
 
     def __len__(self):
         'Denotes the total number of samples'
@@ -63,7 +74,7 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         'Generates one sample of data'
-        sample = torch.load(os.path.join(self.root, self.files[idx]))  # load the features of this sample
+        sample = torch.load(os.path.join(self.root, str(self.files.iloc[idx][0])))  # load the features of this sample
         return sample
 
     def collate_fn(self, data_points: list):
@@ -80,7 +91,7 @@ class Dataset(torch.utils.data.Dataset):
 # torch.backends.cudnn.benchmark = True
 # dtype = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
 #
-# data = Dataset("individual")
+# data = Dataset("full_data")
 #
 # params = {'batch_size': 64,
 #           'shuffle': True,
