@@ -24,6 +24,7 @@ print("Setup done")
 
 # Get AbsSummarizer model
 cache_dir="/projects/tir4/users/mbhandar2/transformer_models_cache"
+
 model = AbsSummarizer(cache_dir, device)
 print("AbsSummarizer done")
 
@@ -63,62 +64,95 @@ loss_fn = loss.LabelSmoothingLoss(label_smoothing=0.1,
                                   device=device,
                                   ignore_index=padding_index)
 
-try_loss = nn.NLLLoss(ignore_index=padding_index, reduction='sum')
+log_linear_loss = nn.NLLLoss(ignore_index=padding_index, reduction='sum')
 
 step = 0
 total_steps = 200000
+save_checkpoint_steps = 2000
 best_perplexity = None
+checkpoint_path = "./checkpoint/"
 
-while step <= total_steps:
-    for batch in training_generator:
-        batch.to(device)
+isTrain = False
 
-        model.zero_grad()
+if isTrain:
+    while step <= total_steps:
+        for batch in training_generator:
+            batch.to(device)
 
-        # Not taking the first token in the batch, because we are predicting from the second word onwards
-        # First word is Start of Sentence, which we don't want to predict
-        num_tokens = batch.tgt[:, 1:].ne(padding_index).sum() # not equal to Pad id, which is 0
+            model.zero_grad()
 
-        # any tensor on GPU has a number of fields associated
-        # .item() gets scalar value
-        normalization = num_tokens.item()
+            # Not taking the first token in the batch, because we are predicting from the second word onwards
+            # First word is Start of Sentence, which we don't want to predict
+            num_tokens = batch.tgt[:, 1:].ne(padding_index).sum() # not equal to Pad id, which is 0
 
-        # We don't give End of Sentence as input
-        model_output = model(batch.src, batch.tgt[:, :-1], batch.segs, batch.mask_src)
-        #
-        # loss = loss_fn(model_output, batch.tgt[:, 1:].reshape(-1))
-        loss = loss_fn(model_output, batch.tgt[:, 1:].contiguous().view(-1))
-        # print(loss.item())
+            # any tensor on GPU has a number of fields associated
+            # .item() gets scalar value
+            normalization = num_tokens.item()
 
-        # remove first element which is start of sentence for each document.
-        # loss = try_loss(model_output, batch.tgt[:, 1:].reshape(-1))
-        # loss = try_loss(model_output, batch.tgt[:, 1:].contiguous().view(-1))
-        loss.div(float(normalization)).backward()
+            # We don't give End of Sentence as input
+            model_output = model(batch.src, batch.tgt[:, :-1], batch.segs, batch.mask_src)
+            #
+            # loss = loss_fn(model_output, batch.tgt[:, 1:].reshape(-1))
+            loss = loss_fn(model_output, batch.tgt[:, 1:].contiguous().view(-1))
+            # print(loss.item())
 
-        for o in optims:
-            o.step()
+            # remove first element which is start of sentence for each document.
+            # loss = try_loss(model_output, batch.tgt[:, 1:].reshape(-1))
+            # loss = try_loss(model_output, batch.tgt[:, 1:].contiguous().view(-1))
+            loss.div(float(normalization)).backward()
 
-        if step%50==0:
-            print(loss.div(float(normalization)).item())
-            print(step)
+            for o in optims:
+                o.step()
 
-        step += 1
-        perplexity = utils.get_perplexity(loss, normalization)
-        logger.info(perplexity)
-        if best_perplexity is None or perplexity < best_perplexity:
-            best_perplexity = perplexity
+            if step%50==0:
+                print(loss.div(float(normalization)).item())
+                print(step)
 
-        if step%2000 == 0:
-            if perplexity == best_perplexity:
-                utils.save_checkpoint(model, step)
+            step += 1
+            perplexity = utils.get_perplexity(loss, normalization)
+            logger.info(perplexity)
 
-        if step >= total_steps:
-            break
+            if step%save_checkpoint_steps == 0:
+                model.eval()
 
-        # break
+                # For validation, calculate loss without label smoothing
+                eval_loss = log_linear_loss(model_output, batch.tgt[:, 1:].contiguous().view(-1))
+                eval_perplexity = utils.get_perplexity(eval_loss, normalization)
 
-# print("Saving model")
-# torch.save(model.state_dict(), "first_model.pt")
+                if best_perplexity is None or eval_perplexity < best_perplexity:
+                    model.save(checkpoint_path, step)
+                    best_perplexity = eval_perplexity
+
+                model.train()
+
+            if step >= total_steps:
+                break
+else:
+    logger.info("Starting Testing")
+    import test
+    from collections import namedtuple
+
+    test_args = {
+        "beam_size": 5,
+        "min_length": 15,
+        "max_length": 150,
+        "recall_eval": False,
+        "block_trigram": True,
+        "result_path": './results/cnndm',
+        "temp_dir": cache_dir,
+    }
+    ARGS = namedtuple('ARGS', test_args)
+    test_args = ARGS(**test_args)
+
+    logger.info(f"ARGS {test_args}")
+
+    try:
+        step = int(checkpoint_path.split('.')[-2].split('_')[-1])
+        print(step)
+    except:
+        step = 0
+    test.test_abs(test_args, device, '', , step)
+
 
 """
 TODO: 

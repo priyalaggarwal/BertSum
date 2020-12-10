@@ -4,10 +4,13 @@ import torch.nn as nn
 import math
 from torch.nn.init import xavier_uniform_
 import copy
+import os
+from utils import logger
+
 
 class AbsSummarizer(nn.Module):
     # TODO: Write eval mode for the entire model
-    def __init__(self, temp_dir, device):
+    def __init__(self, temp_dir, device, checkpoint=None, model_path=None):
         super(AbsSummarizer, self).__init__()
         self.bert_model = BertModel.from_pretrained('bert-base-uncased', cache_dir=temp_dir)
         self.vocab_size = self.bert_model.config.vocab_size
@@ -25,14 +28,17 @@ class AbsSummarizer(nn.Module):
         )
 
         # Perform weight initializations
-        for module in self.decoder.modules():
-            if isinstance(module, (nn.Linear, nn.Embedding)):
-                module.weight.data.normal_(mean=0.0, std=0.02)
-            elif isinstance(module, nn.LayerNorm):
-                module.bias.data.zero_()
-                module.weight.data.fill_(1.0)
-            if isinstance(module, nn.Linear) and module.bias is not None:
-                module.bias.data.zero_()
+        if checkpoint is not None:
+            self.load_state_dict(checkpoint['model'], strict=True)
+        else:
+            for module in self.decoder.modules():
+                if isinstance(module, (nn.Linear, nn.Embedding)):
+                    module.weight.data.normal_(mean=0.0, std=0.02)
+                elif isinstance(module, nn.LayerNorm):
+                    module.bias.data.zero_()
+                    module.weight.data.fill_(1.0)
+                if isinstance(module, nn.Linear) and module.bias is not None:
+                    module.bias.data.zero_()
 
         for p in self.linear_layer.parameters():
             if p.dim() > 1:
@@ -58,6 +64,8 @@ class AbsSummarizer(nn.Module):
 
         self.device = device
         self.to(self.device)
+
+        self.model_path = model_path
 
     def forward(self, src, tgt, segs, mask_src=None, memory_bank=None, step=None):
 
@@ -94,12 +102,27 @@ class AbsSummarizer(nn.Module):
                                           memory_key_padding_mask = src_pad_mask)
 
         linear_layer_input = decoder_outputs.view(-1, decoder_outputs.size(2))
-        # print(linear_layer_input.shape)
 
         final_output = self.linear_layer(linear_layer_input)
-        # print(final_output.shape)
 
         return final_output
+
+    def save(self, step):
+        model_state_dict = self.model.state_dict()
+
+        checkpoint = {
+            'model': model_state_dict,
+            'opt': self.args,
+            'optims': self.optims,
+        }
+
+        checkpoint_path = os.path.join(self.model_path, 'model_step_%d.pt' % step)
+        logger.info("Saving checkpoint %s" % checkpoint_path)
+        # checkpoint_path = '%s_step_%d.pt' % (FLAGS.model_path, step)
+        if not os.path.exists(checkpoint_path):
+            torch.save(checkpoint, checkpoint_path)
+            return checkpoint, checkpoint_path
+
 
 
 class PositionalEncoding(nn.Module):
